@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 <satellite_root_dir>, exit 1"
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+DIR="$1"
+
+apply_rule() {
+    local rule="$1"
+    local file="$2"
+    local expected="$3"
+
+    local count
+
+    count=$(ast-grep scan --rule "$rule" --json=compact "$file" | jq length)
+
+    if [[ "$count" -ne "$expected" ]]; then
+        echo "ERROR: Expected $expected match(es) for $rule in $file, found $count." >&2
+        exit 1
+    fi
+
+    ast-grep scan \
+        --rule "$rule" \
+        --update-all \
+        "$file"
+}
+
+apply_comby_rule() {
+    local rule_dir="$1"
+    local file="$2"
+    local expected="$3"
+
+    local match rewrite matcher count
+    match="$(cat "$rule_dir/match")"
+    rewrite="$(cat "$rule_dir/rewrite")"
+    matcher="$(cat "$rule_dir/matcher" 2>/dev/null || echo ".generic")"
+
+    count=$(comby "$match" "" -matcher "$matcher" -json-lines "$file" | jq -s length)
+
+    if [[ "$count" -ne "$expected" ]]; then
+        echo "ERROR: Expected $expected match(es) for $rule_dir in $file, found $count." >&2
+        exit 1
+    fi
+
+    comby "$match" "$rewrite" -matcher "$matcher" -in-place "$file"
+}
+
+git -C $DIR apply "$SCRIPT_DIR/patches/1786719145_use_latest_crdb_version.patch"

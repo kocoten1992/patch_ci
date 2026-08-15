@@ -1,0 +1,65 @@
+--- a/Makefile
++++ b/Makefile
+@@ -1,10 +1,11 @@
+-REGISTRY_HOST ?= storjlabs
++REGISTRY_HOST ?= kocoten1992
++IMAGE_NAME ?= storkspace-ci
+ 
+ .PHONY: build-slim
+ build-slim:
+ 	docker buildx build \
+ 	    --load \
+-		--tag $(REGISTRY_HOST)/ci:slim \
++		--tag $(REGISTRY_HOST)/$(IMAGE_NAME):slim \
+ 		--platform linux/amd64 \
+ 		-f images/Dockerfile .
+ 
+@@ -14,17 +15,17 @@
+ 		--target=ci \
+ 		--push \
+ 		--pull \
+-		--tag $(REGISTRY_HOST)/ci:latest \
++		--tag $(REGISTRY_HOST)/$(IMAGE_NAME):latest \
+ 		--platform linux/amd64 \
+ 		-f images/Dockerfile .
+ 
+ 	docker buildx build \
+ 		--target=ci-slim \
+ 		--push \
+-		--tag $(REGISTRY_HOST)/ci:slim \
++		--tag $(REGISTRY_HOST)/$(IMAGE_NAME):slim \
+ 		--platform linux/amd64,linux/arm64 \
+ 		-f images/Dockerfile .
+ 
+ .PHONY: clean
+ clean:
+-	docker rmi $(REGISTRY_HOST)/ci:latest $(REGISTRY_HOST)/ci:slim
++	docker rmi $(REGISTRY_HOST)/$(IMAGE_NAME):latest $(REGISTRY_HOST)/$(IMAGE_NAME):slim
+--- a/images/Dockerfile
++++ b/images/Dockerfile
+@@ -48,6 +48,7 @@
+ 
+ # ci:deps
+ 
++ARG CRDB_VERSION
+ COPY images/deps.sh images/deps.sh
+ RUN bash images/deps.sh
+ 
+--- a/images/deps.sh
++++ b/images/deps.sh
+@@ -3,8 +3,12 @@
+ 
+ # CockroachDB
+ 
+-wget -qO- https://binaries.cockroachdb.com/cockroach-v23.2.3.linux-amd64.tgz | tar xvz
+-mv cockroach-v23.2.3.linux-amd64/cockroach /usr/local/bin/
+-mv cockroach-v23.2.3.linux-amd64/lib/* /usr/lib/
++CRDB_VERSION=${CRDB_VERSION:-latest} # latest by default or passing --build-arg CRDB_VERSION=... to docker build
++wget -qO- https://binaries.cockroachdb.com/cockroach-${CRDB_VERSION}.linux-amd64.tgz | tar xvz
++crdb_dir=$(echo cockroach-*.linux-amd64)
++mv "$crdb_dir/cockroach" /usr/local/bin/
++mv "$crdb_dir"/lib/* /usr/lib/
++rm -rf "$crdb_dir"
++cockroach version
+ 
+ # Postgres & Redis
