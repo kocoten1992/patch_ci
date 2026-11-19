@@ -37,29 +37,36 @@
 +	docker rmi $(REGISTRY_HOST)/$(IMAGE_NAME):latest $(REGISTRY_HOST)/$(IMAGE_NAME):slim
 --- a/images/Dockerfile
 +++ b/images/Dockerfile
-@@ -48,6 +48,7 @@
+@@ -48,6 +48,8 @@
  
  # ci:deps
  
 +ARG CRDB_VERSION
++ARG CRDB_BINARY_URL
  COPY images/deps.sh images/deps.sh
  RUN bash images/deps.sh
  
 --- a/images/deps.sh
 +++ b/images/deps.sh
-@@ -3,8 +3,12 @@
+@@ -3,8 +3,18 @@
  
  # CockroachDB
  
 -wget -qO- https://binaries.cockroachdb.com/cockroach-v23.2.3.linux-amd64.tgz | tar xvz
 -mv cockroach-v23.2.3.linux-amd64/cockroach /usr/local/bin/
 -mv cockroach-v23.2.3.linux-amd64/lib/* /usr/lib/
-+CRDB_VERSION=${CRDB_VERSION:-latest} # latest by default or passing --build-arg CRDB_VERSION=... to docker build
-+wget -qO- https://binaries.cockroachdb.com/cockroach-${CRDB_VERSION}.linux-amd64.tgz | tar xvz
-+crdb_dir=$(echo cockroach-*.linux-amd64)
-+mv "$crdb_dir/cockroach" /usr/local/bin/
-+mv "$crdb_dir"/lib/* /usr/lib/
-+rm -rf "$crdb_dir"
++if [ -n "${CRDB_BINARY_URL:-}" ]; then
++    # custom-built binary: download it directly, skip cockroachlabs (--build-arg CRDB_BINARY_URL=...)
++    wget -qO /usr/local/bin/cockroach "${CRDB_BINARY_URL}"
++    chmod +x /usr/local/bin/cockroach
++else
++    CRDB_VERSION=${CRDB_VERSION:-latest} # latest by default or passing --build-arg CRDB_VERSION=... to docker build
++    wget -qO- https://binaries.cockroachdb.com/cockroach-${CRDB_VERSION}.linux-amd64.tgz | tar xvz
++    crdb_dir=$(echo cockroach-*.linux-amd64)
++    mv "$crdb_dir/cockroach" /usr/local/bin/
++    mv "$crdb_dir"/lib/* /usr/lib/
++    rm -rf "$crdb_dir"
++fi
 +cockroach version
  
  # Postgres & Redis
